@@ -4,6 +4,7 @@ import (
 	"log"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/tarm/serial"
 )
@@ -17,8 +18,16 @@ type EventStruct struct {
 // This lets our calling code view events. We only want 1 event at a time (else our code hangs)
 var Events = make(chan EventStruct, 1) // Events is our events channel which will notify calling code that we have an event happening
 
+var Ringing = false   // Ringing returns true if the phone is ringing. Times out after 2 seconds
+var LastNumber string // LastNumber is the last phone number that called
+
 // New Port for working with
 var serialport *serial.Port
+
+// Stop closes our serial port
+func Stop() {
+	serialport.Close()
+}
 
 // Start connects to our COM port for reading and writing
 func Start(COMPort string) {
@@ -69,12 +78,18 @@ func Read() {
 	switch {
 	// If our string contains "RING", it's the phone ringing. This is sent by the modem each time the phone rings (as in, an audible noise is made by the phone)
 	case strings.Contains(string(buf[:n]), "RING") == true:
+		time.AfterFunc(time.Second*2, func() {
+			Ringing = false
+		})
 		passMessage("RING", "")
+
 		// If our string contains "NMBR", it's Caller ID coming through
 	case strings.Contains(string(buf[:n]), "NMBR") == true:
 		// Simple regex that grabs everything after NMBR (which is the last item in our data anyway)
 		r := regexp.MustCompile(`NMBR = (.+)?`)
 		res := r.FindStringSubmatch(string(buf[:n]))
+
+		LastNumber = res[1]
 		passMessage("NMBR", res[1])
 		// Something else?
 	default:
