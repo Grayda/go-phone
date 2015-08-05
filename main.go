@@ -20,6 +20,7 @@ var Events = make(chan EventStruct, 1) // Events is our events channel which wil
 
 var Ringing = false   // Ringing returns true if the phone is ringing. Times out after 2 seconds
 var LastNumber string // LastNumber is the last phone number that called
+var Connected = false
 
 // New Port for working with
 var serialport *serial.Port
@@ -30,7 +31,7 @@ func Stop() {
 }
 
 // Start connects to our COM port for reading and writing
-func Start(COMPort string) {
+func Start(COMPort string) error {
 	var err error
 
 	// Configure our serial port
@@ -41,27 +42,32 @@ func Start(COMPort string) {
 	serialport, err = serial.OpenPort(com)
 
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+
+	Connected = true
 
 	// Reset the modem. We have to add our own newlines
 	_, err = serialport.Write([]byte("ATZ\r\n"))
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// This is the most common method of turning on Caller ID. But sometimes it doesn't work. The modem will return "ERROR", but that's okay, because it's not a show-stopper
 	_, err = serialport.Write([]byte("AT#CID=1\r\n"))
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// The second most common method of turning on Caller ID. Again, will ERROR if it doesn't succeed, but we simply carry on
 	_, err = serialport.Write([]byte("AT+VCID=1\r\n"))
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+
 	passMessage("READY", "")
+	return nil
+
 }
 
 // Read does what it says. Polls our serial port until something comes through. It's usually a blocking call, but we run it in a goroutine in our calling code
